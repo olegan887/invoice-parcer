@@ -1,0 +1,5 @@
+{
+  "name": "Invoice AI Parser",
+  "description": "Automate inventory management by extracting data from invoice photos. Upload your product nomenclature, and the AI will categorize incoming goods, replacing manual data entry.",
+  "requestFramePermissions": []
+}
