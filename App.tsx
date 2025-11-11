@@ -1,6 +1,8 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import type { InvoiceItem } from './types';
+
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import type { InvoiceItem, Plan, PlanId, UserProfile, ExportColumn } from './types';
 import Header from './components/Header';
 import NomenclatureUploader from './components/NomenclatureUploader';
 import InvoiceProcessor from './components/InvoiceProcessor';
@@ -8,101 +10,184 @@ import { parseInvoice } from './services/geminiService';
 import { fileToBase64 } from './utils/fileUtils';
 import { Company, Warehouse, Product } from './types';
 import SetupScreen from './components/SetupScreen';
+import LoginScreen from './components/LoginScreen';
+import PricingModal from './components/PricingModal';
 
 // Declare XLSX to inform TypeScript that it's available globally
 declare const XLSX: any;
 
-// New type for uploaded file state
 export interface UploadedFile {
   file: File;
   preview: string;
 }
 
+const PLANS: Record<PlanId, Plan> = {
+    free: { id: 'free', name: 'Free Trial', price: 0, currency: 'EUR', invoiceLimit: 50, description: "Perfect for trying out the service." },
+    pro: { id: 'pro', name: 'Pro', price: 19.99, currency: 'EUR', invoiceLimit: 1000, description: "Ideal for small to medium businesses." },
+    premium: { id: 'premium', name: 'Premium', price: 79.99, currency: 'EUR', invoiceLimit: 10000, description: "For power users and large operations." }
+};
+
+const DEFAULT_EXPORT_CONFIG: ExportColumn[] = [
+    { key: 'invoiceFileName', header: 'Invoice File', enabled: true, order: 0 },
+    { key: 'matchedProductName', header: 'Matched Product Name', enabled: true, order: 1 },
+    { key: 'originalName', header: 'Original Name', enabled: true, order: 2 },
+    { key: 'sku', header: 'SKU', enabled: true, order: 3 },
+    { key: 'quantity', header: 'Quantity', enabled: true, order: 4 },
+    { key: 'totalQuantity', header: 'Total Quantity', enabled: true, order: 5 },
+    { key: 'unitOfMeasure', header: 'Unit of Measure', enabled: true, order: 6 },
+    { key: 'unitPrice', header: 'Unit Price', enabled: true, order: 7 },
+    { key: 'totalPrice', header: 'Total Price', enabled: true, order: 8 },
+];
+
+
 const App: React.FC = () => {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [planId, setPlanId] = useState<PlanId>('free');
+  const [invoiceCount, setInvoiceCount] = useState(0);
+  const [isPricingModalOpen, setPricingModalOpen] = useState(false);
   const [nomenclature, setNomenclature] = useState<string>('');
   const [invoiceData, setInvoiceData] = useState<InvoiceItem[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadedInvoices, setUploadedInvoices] = useState<UploadedFile[]>([]);
   
-  // State for companies and warehouses
   const [companies, setCompanies] = useState<Company[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
+  const [exportConfig, setExportConfig] = useState<ExportColumn[]>(DEFAULT_EXPORT_CONFIG);
 
-  // Load initial data from localStorage
+
+  // Load user-specific data from localStorage on mount
   useEffect(() => {
-    try {
-      const savedCompanies = localStorage.getItem('companies');
-      const savedWarehouses = localStorage.getItem('warehouses');
-      const savedSelectedCompanyId = localStorage.getItem('selectedCompanyId');
-      const savedSelectedWarehouseId = localStorage.getItem('selectedWarehouseId');
-
-      const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
-      setCompanies(loadedCompanies);
-
-      const loadedWarehouses = savedWarehouses ? JSON.parse(savedWarehouses) : [];
-      setWarehouses(loadedWarehouses);
-
-      if (loadedCompanies.length > 0) {
-        const companyId = savedSelectedCompanyId || loadedCompanies[0].id;
-        setSelectedCompanyId(companyId);
-        
-        const companyWarehouses = loadedWarehouses.filter((w: Warehouse) => w.companyId === companyId);
-        if (companyWarehouses.length > 0) {
-            const warehouseId = savedSelectedWarehouseId || companyWarehouses[0].id;
-            setSelectedWarehouseId(warehouseId);
-        }
-      }
-    } catch (e) {
-        console.error("Failed to load data from localStorage", e);
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      const loggedInUser = JSON.parse(savedUser);
+      setUser(loggedInUser);
+      loadUserData(loggedInUser.id);
     }
   }, []);
   
-  // Load nomenclature for selected warehouse
-  useEffect(() => {
-    if (selectedWarehouseId) {
-        const savedNomenclature = localStorage.getItem(`nomenclature_${selectedWarehouseId}`);
-        setNomenclature(savedNomenclature || '');
-        handleResetInvoices();
-    } else {
-        setNomenclature('');
-    }
-  }, [selectedWarehouseId]);
-  
-
-  // Persist state to localStorage
-  useEffect(() => {
+  const loadUserData = (userId: string) => {
     try {
-        localStorage.setItem('companies', JSON.stringify(companies));
-        localStorage.setItem('warehouses', JSON.stringify(warehouses));
-        if (selectedCompanyId) localStorage.setItem('selectedCompanyId', selectedCompanyId);
-        if (selectedWarehouseId) localStorage.setItem('selectedWarehouseId', selectedWarehouseId);
+        const savedPlanId = localStorage.getItem(`plan_${userId}`);
+        const savedInvoiceCount = localStorage.getItem(`invoiceCount_${userId}`);
+        setPlanId((savedPlanId as PlanId) || 'free');
+        setInvoiceCount(savedInvoiceCount ? parseInt(savedInvoiceCount, 10) : 0);
+
+        const savedCompanies = localStorage.getItem(`companies_${userId}`);
+        const savedWarehouses = localStorage.getItem(`warehouses_${userId}`);
+        const savedSelectedCompanyId = localStorage.getItem(`selectedCompanyId_${userId}`);
+        const savedSelectedWarehouseId = localStorage.getItem(`selectedWarehouseId_${userId}`);
+
+        const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
+        setCompanies(loadedCompanies);
+
+        const loadedWarehouses = savedWarehouses ? JSON.parse(savedWarehouses) : [];
+        setWarehouses(loadedWarehouses);
+        
+        if (loadedCompanies.length > 0) {
+            const companyId = savedSelectedCompanyId || loadedCompanies[0].id;
+            setSelectedCompanyId(companyId);
+            
+            const companyWarehouses = loadedWarehouses.filter((w: Warehouse) => w.companyId === companyId);
+            if (companyWarehouses.length > 0) {
+                const warehouseId = savedSelectedWarehouseId || companyWarehouses[0].id;
+                setSelectedWarehouseId(warehouseId);
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load user data from localStorage", e);
+    }
+  };
+
+  const persistUserData = useCallback(() => {
+    if (!user) return;
+    try {
+        localStorage.setItem(`plan_${user.id}`, planId);
+        localStorage.setItem(`invoiceCount_${user.id}`, String(invoiceCount));
+        localStorage.setItem(`companies_${user.id}`, JSON.stringify(companies));
+        localStorage.setItem(`warehouses_${user.id}`, JSON.stringify(warehouses));
+        if (selectedCompanyId) localStorage.setItem(`selectedCompanyId_${user.id}`, selectedCompanyId);
+        if (selectedWarehouseId) localStorage.setItem(`selectedWarehouseId_${user.id}`, selectedWarehouseId);
     } catch (e) {
         console.error("Failed to save data to localStorage", e);
     }
-  }, [companies, warehouses, selectedCompanyId, selectedWarehouseId]);
+  }, [user, planId, invoiceCount, companies, warehouses, selectedCompanyId, selectedWarehouseId]);
 
+  useEffect(() => {
+      persistUserData();
+  }, [persistUserData]);
+
+  useEffect(() => {
+    if (user && selectedWarehouseId) {
+        const savedNomenclature = localStorage.getItem(`nomenclature_${user.id}_${selectedWarehouseId}`);
+        setNomenclature(savedNomenclature || '');
+        const savedExportConfig = localStorage.getItem(`exportConfig_${user.id}_${selectedWarehouseId}`);
+        setExportConfig(savedExportConfig ? JSON.parse(savedExportConfig) : DEFAULT_EXPORT_CONFIG);
+        handleResetInvoices();
+    } else {
+        setNomenclature('');
+        setExportConfig(DEFAULT_EXPORT_CONFIG);
+    }
+  }, [user, selectedWarehouseId]);
+
+  const handleLogin = (loggedInUser: UserProfile) => {
+    // Persist the full user profile against their ID so it can be retrieved by email login later
+    localStorage.setItem(`user_profile_${loggedInUser.id}`, JSON.stringify(loggedInUser));
+    
+    // Set the current user for session management
+    localStorage.setItem('user', JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
+    loadUserData(loggedInUser.id);
+  };
+
+  const handleLogout = () => {
+      setUser(null);
+      localStorage.removeItem('user');
+      // Reset all states to default
+      setCompanies([]);
+      setWarehouses([]);
+      setSelectedCompanyId(null);
+      setSelectedWarehouseId(null);
+      setNomenclature('');
+      handleResetInvoices();
+      setPlanId('free');
+      setInvoiceCount(0);
+  };
+
+  const handleSelectPlan = (newPlanId: PlanId) => {
+      setPlanId(newPlanId);
+      // Reset invoice count on plan change, simulating a monthly reset
+      if (newPlanId !== 'free') {
+        setInvoiceCount(0);
+      }
+      setPricingModalOpen(false);
+  };
+  
   const handleNomenclatureUpload = (content: string) => {
     setNomenclature(content);
-    if (selectedWarehouseId) {
-        localStorage.setItem(`nomenclature_${selectedWarehouseId}`, content);
+    if (user && selectedWarehouseId) {
+        localStorage.setItem(`nomenclature_${user.id}_${selectedWarehouseId}`, content);
     }
-    handleResetInvoices(); // Reset invoices if nomenclature changes
+    handleResetInvoices();
+  };
+
+  const handleExportConfigSave = (newConfig: ExportColumn[]) => {
+    setExportConfig(newConfig);
+    if (user && selectedWarehouseId) {
+        localStorage.setItem(`exportConfig_${user.id}_${selectedWarehouseId}`, JSON.stringify(newConfig));
+    }
   };
   
   const handleInvoicesUpload = async (files: FileList) => {
       if (!files || files.length === 0) return;
-      // Reset previous batch when new files are uploaded
       setInvoiceData(null);
       setError(null);
-      
-      setIsLoading(true); // Show loader while generating previews
+      setIsLoading(true);
       try {
-        const fileList = Array.from(files);
         const newUploadedInvoices: UploadedFile[] = await Promise.all(
-            fileList.map(async (file) => ({
+            Array.from(files).map(async (file) => ({
                 file,
                 preview: await fileToBase64(file),
             }))
@@ -111,7 +196,6 @@ const App: React.FC = () => {
       } catch (err) {
           setError('Failed to read one or more files.');
           console.error(err);
-          setUploadedInvoices([]);
       } finally {
           setIsLoading(false);
       }
@@ -122,11 +206,9 @@ const App: React.FC = () => {
       setError('Please upload nomenclature and at least one invoice file first.');
       return;
     }
-
     setIsLoading(true);
     setError(null);
     setInvoiceData(null);
-
     try {
         const results = await Promise.allSettled(
             uploadedInvoices.map(async ({ file }) => {
@@ -134,34 +216,28 @@ const App: React.FC = () => {
                 const imageData = base64Data.split(',')[1];
                 const mimeType = file.type;
                 const parsedData = await parseInvoice(imageData, mimeType, nomenclature);
-                
-                // Add filename and unique ID to each item
                 return parsedData.map(item => ({...item, id: crypto.randomUUID(), invoiceFileName: file.name}));
             })
         );
-
         const successfulResults = results
             .filter(result => result.status === 'fulfilled')
             .flatMap(result => (result as PromiseFulfilledResult<InvoiceItem[]>).value);
         
         const failedResults = results.filter(result => result.status === 'rejected');
-
         if (failedResults.length > 0) {
             console.error("Some invoices failed to process:", failedResults);
-            setError(`Failed to process ${failedResults.length} out of ${uploadedInvoices.length} invoices. Please check the files and try again.`);
+            setError(`Failed to process ${failedResults.length} out of ${uploadedInvoices.length} invoices.`);
         }
-
         if (successfulResults.length === 0 && failedResults.length > 0) {
              throw new Error("All invoices failed to process.");
         }
-
         setInvoiceData(successfulResults);
-
+        // Increment count after successful processing
+        setInvoiceCount(prev => prev + uploadedInvoices.length);
     } catch (err) {
       console.error(err);
-      // More specific error is set inside the loop
       if (!error) {
-        setError('An unexpected error occurred during processing. Please check the console.');
+        setError('An unexpected error occurred during processing.');
       }
     } finally {
       setIsLoading(false);
@@ -203,91 +279,32 @@ const App: React.FC = () => {
         const headers = json[0].map(h => String(h).toLowerCase().trim());
         const nameIndex = headers.indexOf('name');
         const skuIndex = headers.indexOf('sku');
-        if (nameIndex === -1 || skuIndex === -1) {
-            console.warn("Nomenclature must have 'name' and 'sku' columns for editing dropdown.");
-            return [];
-        }
+        if (nameIndex === -1 || skuIndex === -1) return [];
         return json.slice(1).map(row => ({
             name: String(row[nameIndex] || ''),
             sku: String(row[skuIndex] || '')
         })).filter(p => p.name && p.sku);
-    } catch (e) {
-        console.error("Failed to parse nomenclature for dropdown:", e);
-        return [];
-    }
+    } catch (e) { return []; }
   }, [nomenclature]);
 
-  const handleExportToExcel = () => {
-    if (!nomenclature || !invoiceData) return;
-
-    try {
-        // 1. Parse existing nomenclature to get original data and headers
-        const workbook = XLSX.read(nomenclature, { type: 'string' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const header: string[] = (XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || []).map(String);
-        const nomenclatureJson: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-        // 2. Prepare data structures for merging
-        const skuKey = header.find(h => h.toLowerCase() === 'sku') || 'sku';
-        const nameKey = header.find(h => h.toLowerCase() === 'name') || 'name';
-
-        const processedItems = new Map<string, any>();
-        nomenclatureJson.forEach(item => {
-            if (item[skuKey]) {
-                processedItems.set(item[skuKey], { ...item });
-            }
-        });
-
-        const unknownItems: any[] = [];
-        const newHeaders = ['totalQuantity', 'unitPrice', 'unitOfMeasure'];
-        newHeaders.forEach(h => {
-            if (!header.includes(h)) {
-                header.push(h);
-            }
-        });
-
-        // 3. Process invoice data
-        invoiceData.forEach(item => {
-            if (item.sku !== 'UNKNOWN' && processedItems.has(item.sku)) {
-                const existingItem = processedItems.get(item.sku);
-                existingItem.totalQuantity = (existingItem.totalQuantity || 0) + item.totalQuantity;
-                existingItem.unitPrice = item.unitPrice; 
-                existingItem.unitOfMeasure = item.unitOfMeasure;
-            } else {
-                const unknownRow: { [key: string]: any } = {};
-                unknownRow[nameKey] = item.originalName;
-                unknownRow[skuKey] = item.sku;
-                unknownRow.totalQuantity = item.totalQuantity;
-                unknownRow.unitPrice = item.unitPrice;
-                unknownRow.unitOfMeasure = item.unitOfMeasure;
-                unknownItems.push(unknownRow);
-            }
-        });
-
-        // 4. Combine and format for export
-        const updatedNomenclature = Array.from(processedItems.values());
-        const finalData = [...updatedNomenclature, ...unknownItems];
-        
-        // 5. Generate and download Excel file
-        const newWorksheet = XLSX.utils.json_to_sheet(finalData, { header });
-        const newWorkbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Processed Inventory');
-        XLSX.writeFile(newWorkbook, `Inventory_Update_${new Date().toISOString().split('T')[0]}.xlsx`);
-
-    } catch (e) {
-        console.error("Failed to export to Excel:", e);
-        setError("Failed to generate the Excel file. Please check the nomenclature format.");
-    }
-};
+  if (!user) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
 
   if (companies.length === 0) {
     return <SetupScreen onSetupComplete={handleInitialSetup} />;
   }
 
+  const currentPlan = PLANS[planId];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 font-sans">
       <Header
+        user={user}
+        onLogout={handleLogout}
+        plan={currentPlan}
+        invoiceCount={invoiceCount}
+        onUpgrade={() => setPricingModalOpen(true)}
         companies={companies}
         warehouses={warehouses}
         selectedCompanyId={selectedCompanyId}
@@ -303,7 +320,7 @@ const App: React.FC = () => {
             <>
               <NomenclatureUploader 
                 onNomenclatureUpload={handleNomenclatureUpload} 
-                key={selectedWarehouseId} // Force re-render on warehouse change
+                key={`${user.id}-${selectedWarehouseId}`} // Force re-render on user/warehouse change
                 existingNomenclature={nomenclature}
               />
               
@@ -316,20 +333,32 @@ const App: React.FC = () => {
                 invoiceData={invoiceData}
                 isLoading={isLoading}
                 error={error}
+                setError={setError}
                 onUpdateItem={handleUpdateInvoiceItem}
                 productList={productList}
-                onExportToExcel={handleExportToExcel}
+                plan={currentPlan}
+                invoiceCount={invoiceCount}
+                onUpgrade={() => setPricingModalOpen(true)}
+                exportConfig={exportConfig}
+                onExportConfigChange={handleExportConfigSave}
+                defaultExportConfig={DEFAULT_EXPORT_CONFIG}
               />
             </>
           ) : (
              <div className="text-center bg-white p-8 rounded-xl shadow-md border border-slate-200">
                 <h2 className="text-xl font-semibold text-slate-700">No Warehouse Selected</h2>
-                <p className="text-slate-500 mt-2">Please select a company and a warehouse from the header to begin.</p>
-                <p className="text-slate-500 mt-1">If no warehouses exist for the selected company, please add one.</p>
+                <p className="text-slate-500 mt-2">Please select a company and a warehouse to begin.</p>
              </div>
           )}
         </div>
       </main>
+      <PricingModal 
+        isOpen={isPricingModalOpen}
+        onClose={() => setPricingModalOpen(false)}
+        onSelectPlan={handleSelectPlan}
+        currentPlanId={planId}
+        plans={PLANS}
+      />
       <footer className="text-center p-4 text-xs text-slate-400 mt-8">
         <p>&copy; 2024 Invoice AI Parser. Streamlining your inventory management.</p>
       </footer>
