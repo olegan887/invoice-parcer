@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 type IconProps = {
@@ -46,8 +47,20 @@ export const TableIcon: React.FC<IconProps> = ({ className }) => (
     </svg>
 );
 
+export const TableCellsIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 6.375h17.25m-17.25 0V18h17.25V6.375m-17.25 0V3.75c0-.966.784-1.75 1.75-1.75h13.75c.966 0 1.75.784 1.75 1.75v2.625m-17.25 0h17.25m-17.25 0h17.25m-17.25 5.625h17.25M9 3.75v16.5M15 3.75v16.5" />
+    </svg>
+);
+
 export const FileDocumentIcon: React.FC<IconProps> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 0a.375.375 0 01-.375-.375V5.625c0-.207.168-.375.375-.375h7.5c.207 0 .375.168.375.375v11.25c0 .207-.168.375-.375.375h-7.5a.375.375 0 01-.375-.375z" />
     </svg>
   );
+
+export const PencilIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+    </svg>
+);

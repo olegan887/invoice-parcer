@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import type { InvoiceItem } from './types';
 import Header from './components/Header';
 import NomenclatureUploader from './components/NomenclatureUploader';
 import InvoiceProcessor from './components/InvoiceProcessor';
 import { parseInvoice } from './services/geminiService';
 import { fileToBase64 } from './utils/fileUtils';
-import { Company, Warehouse } from './types';
+import { Company, Warehouse, Product } from './types';
 import SetupScreen from './components/SetupScreen';
+
+// Declare XLSX to inform TypeScript that it's available globally
+declare const XLSX: any;
 
 // New type for uploaded file state
 export interface UploadedFile {
@@ -131,8 +135,8 @@ const App: React.FC = () => {
                 const mimeType = file.type;
                 const parsedData = await parseInvoice(imageData, mimeType, nomenclature);
                 
-                // Add filename to each item
-                return parsedData.map(item => ({...item, invoiceFileName: file.name}));
+                // Add filename and unique ID to each item
+                return parsedData.map(item => ({...item, id: crypto.randomUUID(), invoiceFileName: file.name}));
             })
         );
 
@@ -179,6 +183,104 @@ const App: React.FC = () => {
     setSelectedWarehouseId(newWarehouse.id);
   };
 
+  const handleUpdateInvoiceItem = (itemId: string, updatedFields: Partial<InvoiceItem>) => {
+    setInvoiceData(currentData => {
+        if (!currentData) return null;
+        return currentData.map(item =>
+            item.id === itemId ? { ...item, ...updatedFields } : item
+        );
+    });
+  };
+
+  const productList = useMemo((): Product[] => {
+    if (!nomenclature) return [];
+    try {
+        const workbook = XLSX.read(nomenclature, { type: 'string' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (json.length < 2) return [];
+        const headers = json[0].map(h => String(h).toLowerCase().trim());
+        const nameIndex = headers.indexOf('name');
+        const skuIndex = headers.indexOf('sku');
+        if (nameIndex === -1 || skuIndex === -1) {
+            console.warn("Nomenclature must have 'name' and 'sku' columns for editing dropdown.");
+            return [];
+        }
+        return json.slice(1).map(row => ({
+            name: String(row[nameIndex] || ''),
+            sku: String(row[skuIndex] || '')
+        })).filter(p => p.name && p.sku);
+    } catch (e) {
+        console.error("Failed to parse nomenclature for dropdown:", e);
+        return [];
+    }
+  }, [nomenclature]);
+
+  const handleExportToExcel = () => {
+    if (!nomenclature || !invoiceData) return;
+
+    try {
+        // 1. Parse existing nomenclature to get original data and headers
+        const workbook = XLSX.read(nomenclature, { type: 'string' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const header: string[] = (XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || []).map(String);
+        const nomenclatureJson: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+        // 2. Prepare data structures for merging
+        const skuKey = header.find(h => h.toLowerCase() === 'sku') || 'sku';
+        const nameKey = header.find(h => h.toLowerCase() === 'name') || 'name';
+
+        const processedItems = new Map<string, any>();
+        nomenclatureJson.forEach(item => {
+            if (item[skuKey]) {
+                processedItems.set(item[skuKey], { ...item });
+            }
+        });
+
+        const unknownItems: any[] = [];
+        const newHeaders = ['totalQuantity', 'unitPrice', 'unitOfMeasure'];
+        newHeaders.forEach(h => {
+            if (!header.includes(h)) {
+                header.push(h);
+            }
+        });
+
+        // 3. Process invoice data
+        invoiceData.forEach(item => {
+            if (item.sku !== 'UNKNOWN' && processedItems.has(item.sku)) {
+                const existingItem = processedItems.get(item.sku);
+                existingItem.totalQuantity = (existingItem.totalQuantity || 0) + item.totalQuantity;
+                existingItem.unitPrice = item.unitPrice; 
+                existingItem.unitOfMeasure = item.unitOfMeasure;
+            } else {
+                const unknownRow: { [key: string]: any } = {};
+                unknownRow[nameKey] = item.originalName;
+                unknownRow[skuKey] = item.sku;
+                unknownRow.totalQuantity = item.totalQuantity;
+                unknownRow.unitPrice = item.unitPrice;
+                unknownRow.unitOfMeasure = item.unitOfMeasure;
+                unknownItems.push(unknownRow);
+            }
+        });
+
+        // 4. Combine and format for export
+        const updatedNomenclature = Array.from(processedItems.values());
+        const finalData = [...updatedNomenclature, ...unknownItems];
+        
+        // 5. Generate and download Excel file
+        const newWorksheet = XLSX.utils.json_to_sheet(finalData, { header });
+        const newWorkbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Processed Inventory');
+        XLSX.writeFile(newWorkbook, `Inventory_Update_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    } catch (e) {
+        console.error("Failed to export to Excel:", e);
+        setError("Failed to generate the Excel file. Please check the nomenclature format.");
+    }
+};
+
   if (companies.length === 0) {
     return <SetupScreen onSetupComplete={handleInitialSetup} />;
   }
@@ -214,6 +316,9 @@ const App: React.FC = () => {
                 invoiceData={invoiceData}
                 isLoading={isLoading}
                 error={error}
+                onUpdateItem={handleUpdateInvoiceItem}
+                productList={productList}
+                onExportToExcel={handleExportToExcel}
               />
             </>
           ) : (

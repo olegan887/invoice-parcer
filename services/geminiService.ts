@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Product, InvoiceItem } from '../types';
+import type { InvoiceItem } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -39,9 +39,21 @@ const responseSchema = {
         unitOfMeasure: {
             type: Type.STRING,
             description: "The unit of measure for the totalQuantity (e.g., 'kg', 'g', 'l', 'ml', 'pcs'). If no specific unit is found, use 'pcs'."
-        }
+        },
+        boundingBox: {
+            type: Type.ARRAY,
+            description: "An array of normalized vertices [{x, y}, ...] for the bounding polygon of the line item on the original image. Coordinates are normalized from 0.0 to 1.0.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    x: { type: Type.NUMBER },
+                    y: { type: Type.NUMBER }
+                },
+                required: ['x', 'y']
+            }
+        },
       },
-      required: ['matchedProductName', 'originalName', 'quantity', 'unitPrice', 'totalPrice', 'sku', 'totalQuantity', 'unitOfMeasure'],
+      required: ['matchedProductName', 'originalName', 'quantity', 'unitPrice', 'totalPrice', 'sku', 'totalQuantity', 'unitOfMeasure', 'boundingBox'],
     },
   };
 
@@ -63,7 +75,8 @@ export const parseInvoice = async (imageData: string, mimeType: string, nomencla
     3.  **Invoice Extraction & Matching:** For each line item on the invoice:
         a. Extract the product name as it appears ('originalName'), quantity, unit price, and total price.
         b. Find the best corresponding product in the nomenclature. The 'matchedProductName' and 'sku' in your response MUST come from the nomenclature file.
-        c. If no confident match is found, use "UNKNOWN" for 'matchedProductName' and 'sku'.
+        c. Accurately identify the bounding box for the entire line item on the image. The coordinates must be normalized (from 0.0 to 1.0) and provided as an array of vertices.
+        d. If no confident match is found, use "UNKNOWN" for 'matchedProductName' and 'sku'.
     4.  **Total Quantity Calculation:** This is a crucial step.
         a. Examine the 'originalName' for pack size, weight, or volume (e.g., 'Сыр 5кг', 'Вода 1.5л').
         b. Calculate 'totalQuantity' by multiplying the item 'quantity' (number of packs) by this pack size. For example, if quantity is 2 for 'Сыр 5кг', the 'totalQuantity' is 10.

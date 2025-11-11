@@ -4,7 +4,13 @@ export interface Product {
   sku: string;
 }
 
+export interface Vertex {
+    x: number;
+    y: number;
+}
+
 export interface InvoiceItem {
+  id: string;
   matchedProductName: string;
   originalName: string;
   quantity: number;
@@ -14,6 +20,7 @@ export interface InvoiceItem {
   invoiceFileName: string;
   totalQuantity: number;
   unitOfMeasure: string;
+  boundingBox?: Vertex[];
 }
 
 export interface Company {
