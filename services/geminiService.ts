@@ -10,119 +10,102 @@ const responseSchema = {
       properties: {
         matchedProductName: {
           type: Type.STRING,
-          description: 'The name of the product from our nomenclature that best matches the item on the invoice.',
+          description: "The product name from the nomenclature that best matches the original name from the invoice. Set to 'UNKNOWN' if no suitable match is found.",
         },
         originalName: {
-            type: Type.STRING,
-            description: 'The product name exactly as it appears on the invoice document.'
+          type: Type.STRING,
+          description: "The product name exactly as it appears on the invoice.",
         },
         quantity: {
           type: Type.NUMBER,
-          description: 'The quantity of the item (number of packs, bottles, etc.).',
+          description: "The quantity of the item listed.",
         },
         unitPrice: {
           type: Type.NUMBER,
-          description: 'The price per unit of the item.',
+          description: "The price per single unit of the item.",
         },
         totalPrice: {
           type: Type.NUMBER,
-          description: 'The total price for the line item (quantity * unit price).',
+          description: "The total price for the line item (quantity * unit price).",
         },
         sku: {
-            type: Type.STRING,
-            description: 'The SKU of the matched product from our nomenclature.'
+          type: Type.STRING,
+          description: "The corresponding SKU from the nomenclature for the matched product. Set to 'UNKNOWN' if no match is found.",
         },
         totalQuantity: {
-            type: Type.NUMBER,
-            description: "The total amount of the product, calculated by multiplying the quantity by the pack size/weight/volume from the product name. For example, if 2 containers of 5kg cheese arrive, 'quantity' is 2, but 'totalQuantity' is 10. If this information is not available, this should be equal to the 'quantity'."
+          type: Type.NUMBER,
+          description: "The total number of individual units if specified (e.g., 10 packs of 12 units = 120). If not specified, this should be the same as 'quantity'.",
         },
         unitOfMeasure: {
-            type: Type.STRING,
-            description: "The unit of measure for the totalQuantity (e.g., 'kg', 'g', 'l', 'ml', 'pcs'). If no specific unit is found, use 'pcs'."
-        },
-        boundingBox: {
-            type: Type.ARRAY,
-            description: "An array of normalized vertices [{x, y}, ...] for the bounding polygon of the line item on the original image. Coordinates are normalized from 0.0 to 1.0.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    x: { type: Type.NUMBER },
-                    y: { type: Type.NUMBER }
-                },
-                required: ['x', 'y']
-            }
+          type: Type.STRING,
+          description: "The unit of measurement for the item (e.g., 'kg', 'pcs', 'box').",
         },
       },
-      required: ['matchedProductName', 'originalName', 'quantity', 'unitPrice', 'totalPrice', 'sku', 'totalQuantity', 'unitOfMeasure', 'boundingBox'],
+      required: ['matchedProductName', 'originalName', 'quantity', 'unitPrice', 'totalPrice', 'sku', 'totalQuantity', 'unitOfMeasure'],
     },
-  };
+};
 
 
-export const parseInvoice = async (imageData: string, mimeType: string, nomenclatureData: string): Promise<InvoiceItem[]> => {
-
-  const prompt = `
-    You are an expert accounting assistant specializing in data entry from invoices (накладная).
-    Your task is to analyze the provided invoice image, extract all line items, and match them against the company's product nomenclature.
-
-    This is our company's product nomenclature, provided as a block of text (likely CSV format):
-    --- NOMENCLATURE START ---
-    ${nomenclatureData}
-    --- NOMENCLATURE END ---
-
-    Instructions:
-    1.  **Language Detection & Translation:** If the invoice text is not in Russian, mentally translate it to Russian before processing to ensure accurate matching with the nomenclature.
-    2.  **Nomenclature Analysis:** First, analyze the nomenclature data to understand its structure. Identify which columns represent the product's name and its unique identifier (SKU, article, etc.).
-    3.  **Invoice Extraction & Matching:** For each line item on the invoice:
-        a. Extract the product name as it appears ('originalName'), quantity, unit price, and total price.
-        b. Find the best corresponding product in the nomenclature. The 'matchedProductName' and 'sku' in your response MUST come from the nomenclature file.
-        c. Accurately identify the bounding box for the entire line item on the image. The coordinates must be normalized (from 0.0 to 1.0) and provided as an array of vertices.
-        d. If no confident match is found, use "UNKNOWN" for 'matchedProductName' and 'sku'.
-    4.  **Total Quantity Calculation:** This is a crucial step.
-        a. Examine the 'originalName' for pack size, weight, or volume (e.g., 'Сыр 5кг', 'Вода 1.5л').
-        b. Calculate 'totalQuantity' by multiplying the item 'quantity' (number of packs) by this pack size. For example, if quantity is 2 for 'Сыр 5кг', the 'totalQuantity' is 10.
-        c. Determine the 'unitOfMeasure' (e.g., 'kg', 'l', 'pcs').
-        d. If no pack size is specified, 'totalQuantity' is the same as 'quantity' and 'unitOfMeasure' should be 'pcs'.
-    5.  **Formatting:** Parse all numbers correctly, removing currency symbols.
-    6.  **Output:** Return a clean JSON array adhering strictly to the schema. No extra text or explanations.
-  `;
-
-  const imagePart = {
-    inlineData: {
-      data: imageData,
-      mimeType: mimeType,
-    },
-  };
-
-  const textPart = {
-    text: prompt,
-  };
-
+export const parseInvoice = async (imageData: string, mimeType:string, nomenclatureData: string): Promise<InvoiceItem[]> => {
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [imagePart, textPart] },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: responseSchema,
-      },
-    });
-    
-    const jsonString = response.text.trim();
-    const result = JSON.parse(jsonString);
+    const prompt = `
+You are an expert invoice processing AI. Your task is to analyze an invoice image, extract all line items, and match them against a provided product nomenclature.
 
-    if (!Array.isArray(result)) {
-        throw new Error("AI response is not a JSON array.");
+**Instructions:**
+1.  Carefully read the line items from the provided invoice image.
+2.  For each line item, use the provided nomenclature data (in CSV format) to find the best match for the product.
+3.  If a product from the invoice cannot be confidently matched to an item in the nomenclature, you MUST set 'matchedProductName' and 'sku' to the string 'UNKNOWN'.
+4.  Extract the following fields for each line item:
+    *   **originalName**: The product name as it appears on the invoice.
+    *   **matchedProductName**: The corresponding 'name' from the nomenclature.
+    *   **sku**: The corresponding 'sku' from the nomenclature.
+    *   **quantity**: The quantity of the item.
+    *   **unitPrice**: The price per unit.
+    *   **totalPrice**: The total price for the line item.
+    *   **totalQuantity**: The absolute total quantity. For example, if the line is "10 boxes of 12 units", quantity is 10 and totalQuantity is 120. If not specified, make it equal to quantity.
+    *   **unitOfMeasure**: The unit of measure (e.g., kg, pcs, box).
+5.  Return the data as a JSON array of objects, strictly adhering to the provided schema. Do not return anything other than the JSON array.
+
+**Nomenclature Data:**
+---
+${nomenclatureData}
+---
+`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+            parts: [
+                { text: prompt },
+                {
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: imageData,
+                    },
+                },
+            ],
+        },
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: responseSchema,
+        },
+    });
+
+    const jsonString = response.text.trim();
+    if (!jsonString.startsWith('[') || !jsonString.endsWith(']')) {
+        console.error("Gemini response is not a valid JSON array:", jsonString);
+        throw new Error("The AI returned data in an unexpected format. Please try again with a clearer image.");
     }
-    
-    // Basic validation
-    if (result.length > 0 && typeof result[0].matchedProductName === 'undefined') {
-        throw new Error("AI response does not match the expected schema.");
-    }
-    
+
+    const result = JSON.parse(jsonString);
     return result as InvoiceItem[];
 
-  } catch (error) {
-    console.error("Error processing invoice with Gemini API:", error);
-    throw new Error("The Gemini API failed to process the request. Please check the console for details.");
+  } catch (error: any) {
+    console.error("Error calling Gemini to process invoice:", error);
+    const message = error.message || 'An unknown error occurred.';
+    if (message.includes('API key not valid')) {
+        throw new Error("The API key is invalid. Please check your configuration.");
+    }
+    throw new Error(`Failed to process the invoice with AI. Details: ${message}`);
   }
 };

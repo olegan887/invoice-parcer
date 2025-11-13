@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { InvoiceItem, Plan, PlanId, UserProfile, ExportColumn } from './types';
 import Header from './components/Header';
@@ -12,6 +10,7 @@ import { Company, Warehouse, Product } from './types';
 import SetupScreen from './components/SetupScreen';
 import LoginScreen from './components/LoginScreen';
 import PricingModal from './components/PricingModal';
+import LandingPage from './components/LandingPage';
 
 // Declare XLSX to inform TypeScript that it's available globally
 declare const XLSX: any;
@@ -42,6 +41,7 @@ const DEFAULT_EXPORT_CONFIG: ExportColumn[] = [
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [showLoginPage, setShowLoginPage] = useState(false);
   const [planId, setPlanId] = useState<PlanId>('free');
   const [invoiceCount, setInvoiceCount] = useState(0);
   const [isPricingModalOpen, setPricingModalOpen] = useState(false);
@@ -146,6 +146,7 @@ const App: React.FC = () => {
       setUser(null);
       localStorage.removeItem('user');
       // Reset all states to default
+      setShowLoginPage(false);
       setCompanies([]);
       setWarehouses([]);
       setSelectedCompanyId(null);
@@ -215,6 +216,7 @@ const App: React.FC = () => {
                 const base64Data = await fileToBase64(file);
                 const imageData = base64Data.split(',')[1];
                 const mimeType = file.type;
+                // This now calls our backend!
                 const parsedData = await parseInvoice(imageData, mimeType, nomenclature);
                 return parsedData.map(item => ({...item, id: crypto.randomUUID(), invoiceFileName: file.name}));
             })
@@ -226,19 +228,18 @@ const App: React.FC = () => {
         const failedResults = results.filter(result => result.status === 'rejected');
         if (failedResults.length > 0) {
             console.error("Some invoices failed to process:", failedResults);
-            setError(`Failed to process ${failedResults.length} out of ${uploadedInvoices.length} invoices.`);
+            setError(`Failed to process ${failedResults.length} out of ${uploadedInvoices.length} invoices. Check the console.`);
         }
         if (successfulResults.length === 0 && failedResults.length > 0) {
-             throw new Error("All invoices failed to process.");
+             const reason = (failedResults[0] as PromiseRejectedResult).reason;
+             throw new Error(reason?.message || "All invoices failed to process.");
         }
         setInvoiceData(successfulResults);
         // Increment count after successful processing
-        setInvoiceCount(prev => prev + uploadedInvoices.length);
-    } catch (err) {
+        setInvoiceCount(prev => prev + successfulResults.length > 0 ? uploadedInvoices.length : 0);
+    } catch (err: any) {
       console.error(err);
-      if (!error) {
-        setError('An unexpected error occurred during processing.');
-      }
+      setError(err.message || 'An unexpected error occurred during processing.');
     } finally {
       setIsLoading(false);
     }
@@ -288,7 +289,9 @@ const App: React.FC = () => {
   }, [nomenclature]);
 
   if (!user) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return showLoginPage ? 
+        <LoginScreen onLogin={handleLogin} /> : 
+        <LandingPage onGetStarted={() => setShowLoginPage(true)} plans={PLANS} />;
   }
 
   if (companies.length === 0) {

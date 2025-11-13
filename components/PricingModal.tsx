@@ -24,7 +24,8 @@ const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onSelectPl
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {planList.map(plan => (
+            {/* FIX: Explicitly type `plan` as `Plan` to fix type inference issue. */}
+            {planList.map((plan: Plan) => (
                  <div key={plan.id} className={`p-6 rounded-lg border-2 flex flex-col ${currentPlanId === plan.id ? 'border-indigo-500' : 'border-slate-200'}`}>
                     <h3 className="text-xl font-semibold text-slate-900">{plan.name}</h3>
                     <p className="text-slate-500 mt-1 flex-grow">{plan.description}</p>
