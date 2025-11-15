@@ -1,128 +1,92 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+
+import React, { useRef, useEffect, useState } from 'react';
 import { DocumentTextIcon } from './Icons';
 import type { UserProfile } from '../types';
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    GoogleAuthProvider,
+    signInWithPopup,
+} from 'firebase/auth';
+import { auth } from '../firebase'; // Assuming your firebase config is exported from 'firebase.ts'
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile) => void;
 }
 
-// This would typically be loaded from environment variables.
-// A placeholder is used here to prevent configuration errors in this environment.
-// For full functionality, replace this with your actual Google Client ID.
-const GOOGLE_CLIENT_ID = "1002324914399-6vkpsoj29t6o7d5q9b540h21s9622d56.apps.googleusercontent.com";
-
-
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
-    const googleButtonRef = useRef<HTMLDivElement>(null);
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const handleGoogleLogin = useCallback((credential: string) => {
-        try {
-            const tokenPayload = credential.split('.')[1];
-            const decodedPayload = atob(tokenPayload);
-            const parsedData = JSON.parse(decodedPayload);
-            
-            const loggedInUser: UserProfile = {
-                id: parsedData.sub,
-                name: parsedData.name,
-                email: parsedData.email,
-                picture: parsedData.picture,
-            };
-            
-            onLogin(loggedInUser);
-        } catch (error) {
-            console.error("Failed to decode Google credential:", error);
-            setError("Google Sign-In failed. Please try again.");
-        }
-    }, [onLogin]);
-
-    useEffect(() => {
-        if (!GOOGLE_CLIENT_ID) {
-            console.error("Google Client ID is not configured.");
-            return;
-        }
-
-        const google = (window as any).google;
-
-        if (google?.accounts?.id) {
-            google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: (response: any) => {
-                    handleGoogleLogin(response.credential);
-                },
-            });
-
-            if (googleButtonRef.current) {
-                google.accounts.id.renderButton(
-                    googleButtonRef.current,
-                    { theme: "outline", size: "large", type: 'standard', text: 'signin_with' }
-                );
-            }
-        } else {
-            console.warn("Google Identity Services library not loaded yet.");
-        }
-    }, [handleGoogleLogin]);
-
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
         if (!email || !password) {
             setError('Please enter both email and password.');
             return;
         }
-        // Basic email validation
         if (!/\S+@\S+\.\S+/.test(email)) {
             setError('Please enter a valid email address.');
             return;
         }
 
-        if (isSignUp) {
-            // --- Sign Up Logic ---
-            if (password.length < 6) {
-                setError('Password must be at least 6 characters long.');
-                return;
-            }
-            const existingUser = localStorage.getItem(`user_auth_${email}`);
-            if (existingUser) {
-                setError('An account with this email already exists. Please sign in.');
-                return;
-            }
-            // In a real app, you would hash the password before storing it.
-            const newUserAuth = { email, password };
-            const userId = `email|${btoa(email)}`;
-            const newUserProfile: UserProfile = {
-                id: userId,
-                name: email.split('@')[0],
-                email: email,
-                picture: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0])}&background=random&color=fff`,
-            };
-            localStorage.setItem(`user_auth_${email}`, JSON.stringify(newUserAuth));
-            onLogin(newUserProfile);
-        } else {
-            // --- Sign In Logic ---
-            const savedUserAuthString = localStorage.getItem(`user_auth_${email}`);
-            if (!savedUserAuthString) {
-                setError('No account found with this email. Please sign up.');
-                return;
-            }
-            const savedUserAuth = JSON.parse(savedUserAuthString);
-            if (savedUserAuth.password !== password) {
-                setError('Incorrect password.');
-                return;
-            }
-            
-            const userId = `email|${btoa(email)}`;
-            const userProfileString = localStorage.getItem(`user_profile_${userId}`);
-            if (!userProfileString) {
-                setError('Could not find user profile. Please try signing up again.');
-                return;
+        try {
+            let userCredential;
+            if (isSignUp) {
+                if (password.length < 6) {
+                    setError('Password must be at least 6 characters long.');
+                    return;
+                }
+                userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            } else {
+                userCredential = await signInWithEmailAndPassword(auth, email, password);
             }
 
-            const userProfile = JSON.parse(userProfileString);
+            const firebaseUser = userCredential.user;
+            const userProfile: UserProfile = {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || email.split('@')[0],
+                email: firebaseUser.email!,
+                picture: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0])}&background=random&color=fff`,
+            };
             onLogin(userProfile);
+
+        } catch (error: any) {
+            // More specific error handling
+            if (error.code === 'auth/email-already-in-use') {
+                setError('An account with this email already exists. Please sign in.');
+            } else if (error.code === 'auth/user-not-found') {
+                setError('No account found with this email. Please sign up.');
+            } else if (error.code === 'auth/wrong-password') {
+                setError('Incorrect password.');
+            } else {
+                setError('Authentication failed. Please try again.');
+            }
+            console.error("Firebase authentication error:", error);
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        setError('');
+        try {
+            const provider = new GoogleAuthProvider();
+            const result = await signInWithPopup(auth, provider);
+            
+            const firebaseUser = result.user;
+            const userProfile: UserProfile = {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName!,
+                email: firebaseUser.email!,
+                picture: firebaseUser.photoURL!,
+            };
+            onLogin(userProfile);
+        } catch (error) {
+            setError("Google Sign-In failed. Please try again.");
+            console.error("Google Sign-In error:", error);
         }
     };
 
@@ -138,7 +102,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     <h1 className="text-2xl font-bold text-center text-slate-800">Invoice AI Parser</h1>
                     <p className="text-center text-slate-500 mt-2 mb-6">{isSignUp ? 'Create an account to get started.' : 'Sign in to your account.'}</p>
                     
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleEmailPasswordSubmit} className="space-y-4">
                         <div>
                             <label htmlFor="email" className="sr-only">Email address</label>
                             <input
@@ -180,7 +144,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
                     <div className="text-center my-4">
                         <button onClick={() => { setIsSignUp(!isSignUp); setError(''); }} className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                            {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+                            {isSignUp ? 'Already have an account? Sign In' : "Don\'t have an account? Sign Up"}
                         </button>
                     </div>
 
@@ -196,9 +160,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     </div>
                     
                     <div className="flex justify-center">
-                        <div ref={googleButtonRef}></div>
+                         <button onClick={handleGoogleSignIn} className="flex items-center justify-center w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50">
+                            <svg className="w-5 h-5 mr-2" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 111.3 512 0 398.5 0 256S111.3 0 244 0c69.1 0 125.3 27.2 170.4 69.1L377.5 128C345.1 98.1 300.5 80 244 80c-87.6 0-158.3 70.7-158.3 158.3s70.7 158.3 158.3 158.3c96.1 0 133.3-67.9 138-102.3H244v-73.4h239.3c5.1 27.3 8.7 56.4 8.7 87.5z"></path></svg>
+                            Sign in with Google
+                        </button>
                     </div>
-                    {!GOOGLE_CLIENT_ID && <p className="text-center text-red-500 text-xs mt-4">Google Sign-In is not configured on this server.</p>}
                 </div>
                 <footer className="text-center p-4 text-xs text-slate-400 mt-4">
                     <p>&copy; 2024 Invoice AI Parser.</p>

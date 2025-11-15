@@ -11,8 +11,10 @@ import SetupScreen from './components/SetupScreen';
 import LoginScreen from './components/LoginScreen';
 import PricingModal from './components/PricingModal';
 import LandingPage from './components/LandingPage';
+import { auth, db } from './firebase';
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
-// Declare XLSX to inform TypeScript that it's available globally
 declare const XLSX: any;
 
 export interface UploadedFile {
@@ -56,96 +58,134 @@ const App: React.FC = () => {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
   const [exportConfig, setExportConfig] = useState<ExportColumn[]>(DEFAULT_EXPORT_CONFIG);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
 
-  // Load user-specific data from localStorage on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const loggedInUser = JSON.parse(savedUser);
-      setUser(loggedInUser);
-      loadUserData(loggedInUser.id);
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+            const userProfile: UserProfile = {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || firebaseUser.email!.split('@')[0],
+                email: firebaseUser.email!,
+                picture: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.email!.split('@')[0])}&background=random&color=fff`,
+            };
+            setUser(userProfile);
+            await loadUserData(userProfile.id);
+        } else {
+            setUser(null);
+            resetAppState();
+        }
+        setIsDataLoaded(true);
+    });
+    return () => unsubscribe();
   }, []);
   
-  const loadUserData = (userId: string) => {
+  const loadUserData = async (userId: string) => {
+    const userDocRef = doc(db, "users", userId);
     try {
-        const savedPlanId = localStorage.getItem(`plan_${userId}`);
-        const savedInvoiceCount = localStorage.getItem(`invoiceCount_${userId}`);
-        setPlanId((savedPlanId as PlanId) || 'free');
-        setInvoiceCount(savedInvoiceCount ? parseInt(savedInvoiceCount, 10) : 0);
-
-        const savedCompanies = localStorage.getItem(`companies_${userId}`);
-        const savedWarehouses = localStorage.getItem(`warehouses_${userId}`);
-        const savedSelectedCompanyId = localStorage.getItem(`selectedCompanyId_${userId}`);
-        const savedSelectedWarehouseId = localStorage.getItem(`selectedWarehouseId_${userId}`);
-
-        const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
-        setCompanies(loadedCompanies);
-
-        const loadedWarehouses = savedWarehouses ? JSON.parse(savedWarehouses) : [];
-        setWarehouses(loadedWarehouses);
-        
-        if (loadedCompanies.length > 0) {
-            const companyId = savedSelectedCompanyId || loadedCompanies[0].id;
-            setSelectedCompanyId(companyId);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setPlanId(data.planId || 'free');
+            setInvoiceCount(data.invoiceCount || 0);
+            const loadedCompanies = data.companies || [];
+            setCompanies(loadedCompanies);
+            const loadedWarehouses = data.warehouses || [];
+            setWarehouses(loadedWarehouses);
             
-            const companyWarehouses = loadedWarehouses.filter((w: Warehouse) => w.companyId === companyId);
-            if (companyWarehouses.length > 0) {
-                const warehouseId = savedSelectedWarehouseId || companyWarehouses[0].id;
-                setSelectedWarehouseId(warehouseId);
+            if(loadedCompanies.length > 0) {
+                const companyId = data.selectedCompanyId || loadedCompanies[0].id;
+                setSelectedCompanyId(companyId);
+                const companyWarehouses = loadedWarehouses.filter((w: Warehouse) => w.companyId === companyId);
+                if (companyWarehouses.length > 0) {
+                    const warehouseId = data.selectedWarehouseId || companyWarehouses[0].id;
+                    setSelectedWarehouseId(warehouseId);
+                }
             }
+        } else {
+          // If no data, it might be a new user. Default states are already set.
+          // The data will be saved on first action.
         }
     } catch (e) {
-        console.error("Failed to load user data from localStorage", e);
+        console.error("Failed to load user data from Firestore", e);
+        setError("Could not load your profile. Please try refreshing the page.");
     }
   };
 
-  const persistUserData = useCallback(() => {
+  const persistUserData = useCallback(async () => {
     if (!user) return;
+    const userDocRef = doc(db, "users", user.id);
+    const userData = {
+        planId,
+        invoiceCount,
+        companies,
+        warehouses,
+        selectedCompanyId,
+        selectedWarehouseId,
+    };
     try {
-        localStorage.setItem(`plan_${user.id}`, planId);
-        localStorage.setItem(`invoiceCount_${user.id}`, String(invoiceCount));
-        localStorage.setItem(`companies_${user.id}`, JSON.stringify(companies));
-        localStorage.setItem(`warehouses_${user.id}`, JSON.stringify(warehouses));
-        if (selectedCompanyId) localStorage.setItem(`selectedCompanyId_${user.id}`, selectedCompanyId);
-        if (selectedWarehouseId) localStorage.setItem(`selectedWarehouseId_${user.id}`, selectedWarehouseId);
+        await setDoc(userDocRef, userData, { merge: true });
     } catch (e) {
-        console.error("Failed to save data to localStorage", e);
+        console.error("Failed to save data to Firestore", e);
     }
   }, [user, planId, invoiceCount, companies, warehouses, selectedCompanyId, selectedWarehouseId]);
 
   useEffect(() => {
-      persistUserData();
+      if(user) persistUserData();
   }, [persistUserData]);
 
   useEffect(() => {
-    if (user && selectedWarehouseId) {
-        const savedNomenclature = localStorage.getItem(`nomenclature_${user.id}_${selectedWarehouseId}`);
-        setNomenclature(savedNomenclature || '');
-        const savedExportConfig = localStorage.getItem(`exportConfig_${user.id}_${selectedWarehouseId}`);
-        setExportConfig(savedExportConfig ? JSON.parse(savedExportConfig) : DEFAULT_EXPORT_CONFIG);
-        handleResetInvoices();
-    } else {
-        setNomenclature('');
-        setExportConfig(DEFAULT_EXPORT_CONFIG);
-    }
+    const saveNomenclatureAndConfig = async () => {
+        if (user && selectedWarehouseId) {
+            const warehouseDocRef = doc(db, "users", user.id, "warehouses", selectedWarehouseId);
+            try {
+                await setDoc(warehouseDocRef, { nomenclature, exportConfig }, { merge: true });
+            } catch (error) {
+                console.error("Failed to save warehouse-specific data", error);
+            }
+        }
+    };
+    saveNomenclatureAndConfig();
+  }, [user, selectedWarehouseId, nomenclature, exportConfig]);
+
+  useEffect(() => {
+    const loadNomenclatureAndConfig = async () => {
+        if (user && selectedWarehouseId) {
+            const warehouseDocRef = doc(db, "users", user.id, "warehouses", selectedWarehouseId);
+            try {
+                const docSnap = await getDoc(warehouseDocRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setNomenclature(data.nomenclature || '');
+                    setExportConfig(data.exportConfig || DEFAULT_EXPORT_CONFIG);
+                } else {
+                    setNomenclature('');
+                    setExportConfig(DEFAULT_EXPORT_CONFIG);
+                }
+            } catch (error) {
+                console.error("Failed to load warehouse-specific data", error);
+            }
+        }
+    };
+    loadNomenclatureAndConfig();
+    handleResetInvoices();
   }, [user, selectedWarehouseId]);
 
   const handleLogin = (loggedInUser: UserProfile) => {
-    // Persist the full user profile against their ID so it can be retrieved by email login later
-    localStorage.setItem(`user_profile_${loggedInUser.id}`, JSON.stringify(loggedInUser));
-    
-    // Set the current user for session management
-    localStorage.setItem('user', JSON.stringify(loggedInUser));
+    // This function is now primarily handled by onAuthStateChanged
     setUser(loggedInUser);
-    loadUserData(loggedInUser.id);
   };
 
-  const handleLogout = () => {
-      setUser(null);
-      localStorage.removeItem('user');
-      // Reset all states to default
+  const handleLogout = async () => {
+      try {
+        await signOut(auth);
+      } catch (error) {
+        console.error("Logout failed:", error);
+      }
+  };
+  
+  const resetAppState = () => {
       setShowLoginPage(false);
       setCompanies([]);
       setWarehouses([]);
@@ -155,11 +195,11 @@ const App: React.FC = () => {
       handleResetInvoices();
       setPlanId('free');
       setInvoiceCount(0);
-  };
+      setIsDataLoaded(false);
+  }
 
   const handleSelectPlan = (newPlanId: PlanId) => {
       setPlanId(newPlanId);
-      // Reset invoice count on plan change, simulating a monthly reset
       if (newPlanId !== 'free') {
         setInvoiceCount(0);
       }
@@ -168,17 +208,11 @@ const App: React.FC = () => {
   
   const handleNomenclatureUpload = (content: string) => {
     setNomenclature(content);
-    if (user && selectedWarehouseId) {
-        localStorage.setItem(`nomenclature_${user.id}_${selectedWarehouseId}`, content);
-    }
     handleResetInvoices();
   };
 
   const handleExportConfigSave = (newConfig: ExportColumn[]) => {
     setExportConfig(newConfig);
-    if (user && selectedWarehouseId) {
-        localStorage.setItem(`exportConfig_${user.id}_${selectedWarehouseId}`, JSON.stringify(newConfig));
-    }
   };
   
   const handleInvoicesUpload = async (files: FileList) => {
@@ -216,7 +250,6 @@ const App: React.FC = () => {
                 const base64Data = await fileToBase64(file);
                 const imageData = base64Data.split(',')[1];
                 const mimeType = file.type;
-                // This now calls our backend!
                 const parsedData = await parseInvoice(imageData, mimeType, nomenclature);
                 return parsedData.map(item => ({...item, id: crypto.randomUUID(), invoiceFileName: file.name}));
             })
@@ -235,7 +268,6 @@ const App: React.FC = () => {
              throw new Error(reason?.message || "All invoices failed to process.");
         }
         setInvoiceData(successfulResults);
-        // Increment count after successful processing
         setInvoiceCount(prev => prev + successfulResults.length > 0 ? uploadedInvoices.length : 0);
     } catch (err: any) {
       console.error(err);
@@ -287,6 +319,10 @@ const App: React.FC = () => {
         })).filter(p => p.name && p.sku);
     } catch (e) { return []; }
   }, [nomenclature]);
+
+  if (!isDataLoaded) {
+    return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
+  }
 
   if (!user) {
     return showLoginPage ? 
@@ -361,6 +397,7 @@ const App: React.FC = () => {
         onSelectPlan={handleSelectPlan}
         currentPlanId={planId}
         plans={PLANS}
+        userEmail={user?.email ?? ''}
       />
       <footer className="text-center p-4 text-xs text-slate-400 mt-8">
         <p>&copy; 2024 Invoice AI Parser. Streamlining your inventory management.</p>
