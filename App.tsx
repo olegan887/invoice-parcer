@@ -351,7 +351,7 @@ const App: React.FC = () => {
         onCompanyChange={setSelectedCompanyId}
         onWarehouseChange={setSelectedWarehouseId}
         setCompanies={setCompanies}
-        setWarehouses={setWarehouses}
+        setWarehouses={setWarewareses}
        />
       <main className="container mx-auto p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-12">
@@ -400,7 +400,12 @@ const App: React.FC = () => {
         userEmail={user?.email ?? ''}
       />
       <footer className="text-center p-4 text-xs text-slate-400 mt-8">
-        <p>&copy; 2024 Invoice AI Parser. Streamlining your inventory management.</p>
+        <p>&copy; 2024 Invoice AI Parser. Все права защищены.</p>
+        <div className="flex justify-center space-x-4 mt-2">
+          <a href="/privacy-policy" className="text-indigo-600 hover:text-indigo-800">Политика конфиденциальности</a>
+          <a href="/terms-of-service" className="text-indigo-600 hover:text-indigo-800">Условия использования</a>
+          <a href="mailto:support@example.com" className="text-indigo-600 hover:text-indigo-800">Связаться с нами</a>
+        </div>
       </footer>
     </div>
   );

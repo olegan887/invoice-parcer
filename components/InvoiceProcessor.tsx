@@ -122,26 +122,45 @@ const InvoiceProcessor: React.FC<InvoiceProcessorProps> = ({
   const handleExportToExcel = () => {
     if (!invoiceData) return;
     try {
-        const aggregatedData = new Map<string, any>();
+        type AggregatedItem = Omit<InvoiceItem, 'id' | 'invoiceFileName' | 'originalName' | 'quantity' | 'totalQuantity' | 'totalPrice'> & {
+            quantity: number;
+            totalQuantity: number;
+            totalPrice: number;
+            invoiceFileNames: Set<string>;
+            originalNames: Set<string>;
+        };
+
+        const aggregatedData = new Map<string, AggregatedItem>();
         invoiceData.forEach(item => {
             const key = item.sku;
             if (key === 'UNKNOWN') return; 
 
             if (!aggregatedData.has(key)) {
                 aggregatedData.set(key, {
-                    ...item,
+                    sku: item.sku,
+                    matchedProductName: item.matchedProductName, // Assuming matchedProductName is consistent per SKU
+                    unitOfMeasure: item.unitOfMeasure,           // Assuming unitOfMeasure is consistent per SKU
+                    unitPrice: item.unitPrice,                   // Taking the unitPrice from the first encountered item
                     quantity: 0,
                     totalQuantity: 0,
                     totalPrice: 0,
+                    invoiceFileNames: new Set<string>(),
+                    originalNames: new Set<string>(),
                 });
             }
-            const existing = aggregatedData.get(key);
+            const existing = aggregatedData.get(key)!;
             existing.quantity += item.quantity;
             existing.totalQuantity += item.totalQuantity;
             existing.totalPrice += item.totalPrice;
+            existing.invoiceFileNames.add(item.invoiceFileName);
+            existing.originalNames.add(item.originalName);
         });
 
-        const finalData = Array.from(aggregatedData.values());
+        const finalData = Array.from(aggregatedData.values()).map(aggregatedItem => ({
+            ...aggregatedItem,
+            invoiceFileName: Array.from(aggregatedItem.invoiceFileNames).join('; '), // Join unique file names
+            originalName: Array.from(aggregatedItem.originalNames).join('; '),     // Join unique original names
+        }));
 
         const activeColumns = exportConfig.filter(c => c.enabled).sort((a, b) => a.order - b.order);
         const exportHeaders = activeColumns.map(c => c.header);
@@ -149,7 +168,7 @@ const InvoiceProcessor: React.FC<InvoiceProcessorProps> = ({
         const exportableData = finalData.map(item => {
             const row: {[key: string]: any} = {};
             activeColumns.forEach(col => {
-                row[col.header] = item[col.key as keyof InvoiceItem] ?? '';
+                row[col.header] = item[col.key as keyof AggregatedItem] ?? ''; // Use AggregatedItem type here
             });
             return row;
         });
@@ -237,7 +256,7 @@ const InvoiceProcessor: React.FC<InvoiceProcessorProps> = ({
                          <button onClick={() => setConfigModalOpen(true)} className="flex-shrink-0 flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-slate-700 bg-slate-200 hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-400">
                             <Cog8ToothIcon className="w-4 h-4 mr-2" /> Configure Export
                         </button>
-                         <button onClick={downloadAllCSV} className="flex-shrink-0 flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-slate-600 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">
+                         <button onClick={downloadAllCSV} className="flex-shrink-0 flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-slate-600 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-500">
                             <DownloadIcon className="w-4 h-4 mr-2" /> Download as CSV
                         </button>
                         <button onClick={handleExportToExcel} className="flex-shrink-0 flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">
