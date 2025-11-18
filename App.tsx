@@ -351,7 +351,7 @@ const App: React.FC = () => {
         onCompanyChange={setSelectedCompanyId}
         onWarehouseChange={setSelectedWarehouseId}
         setCompanies={setCompanies}
-        setWarehouses={setWarewareses}
+        setWarehouses={setWarehouses}
        />
       <main className="container mx-auto p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-12">
