@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Company, Warehouse, UserProfile, Plan } from '../types';
+import { Link } from 'react-router-dom';
 
 interface HeaderProps {
     user: UserProfile;
@@ -89,7 +91,7 @@ const Header: React.FC<HeaderProps> = ({
     <header className="bg-white shadow-sm sticky top-0 z-40">
       <div className="container mx-auto px-4 md:px-8 py-3 flex items-center justify-between flex-wrap">
         <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold text-slate-800">Invoice AI Parser</h1>
+            <Link to="/" className="text-xl font-bold text-slate-800">Invoice AI Parser</Link>
         </div>
 
         <div className="flex items-center space-x-2 md:space-x-4">

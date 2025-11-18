@@ -4,7 +4,7 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBqHAr-VX41AaHj5YIL9E3qjy98H3fbZvg",
+  apiKey: "AIzaSyAnCQe9X4JQof57VTZlKNpJhKYTGO-31IA",
   authDomain: "invoice-ai-7f9f5.firebaseapp.com",
   projectId: "invoice-ai-7f9f5",
   storageBucket: "invoice-ai-7f9f5.firebasestorage.app",

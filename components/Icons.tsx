@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 
 type IconProps = {
@@ -106,5 +105,11 @@ export const ScaleIcon: React.FC<IconProps> = ({ className }) => (
 export const WrenchScrewdriverIcon: React.FC<IconProps> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.471-2.471a.563.563 0 01.8 0l2.47 2.471a.563.563 0 010 .8l-2.47 2.47a.563.563 0 01-.8 0l-2.471-2.471a.563.563 0 010-.8zm-4.96-4.96l2.471 2.471a.563.563 0 010 .8l-2.47 2.47a.563.563 0 01-.8 0l-2.471-2.47a.563.563 0 010-.8l2.47-2.471a.563.563 0 01.8 0z" />
+    </svg>
+);
+
+export const ChevronDownIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
     </svg>
 );

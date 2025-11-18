@@ -1,0 +1,83 @@
+
+{
+  "header": {
+    "features": "Features",
+    "how_it_works": "How It Works",
+    "pricing": "Pricing",
+    "faq": "FAQ",
+    "login": "Sign In"
+  },
+  "hero": {
+    "title": "Ready to streamline your workflow?",
+    "subtitle": "Our AI-powered tool automatically extracts data from invoices, matches it with your inventory data, eliminating manual entry errors. Speed up your workflow today.",
+    "cta": "Get Started for Free",
+    "cta_note": "Free trial, no credit card required."
+  },
+  "how_it_works": {
+    "title": "Get Started in Three Simple Steps",
+    "subtitle": "Go from a paper document to analysis-ready data in under a minute.",
+    "step1_title": "Upload Nomenclature",
+    "step1_description": "Upload your price list in CSV or Excel format so our AI can accurately match products.",
+    "step2_title": "Upload Invoices",
+    "step2_description": "Take a photo or scan your invoices. You can upload multiple files at once.",
+    "step3_title": "Review and Export",
+    "step3_description": "Review the extracted data, make edits if necessary, and export in a convenient format."
+  },
+  "features": {
+    "title": "Everything You Need for Automation",
+    "subtitle": "Our solution is designed to help you spend less time on routine tasks and more on growing your business.",
+    "feature1_title": "High Accuracy with AI",
+    "feature1_description": "Our technology recognizes and correctly structures data even from complex invoices.",
+    "feature2_title": "Flexible Data Export",
+    "feature2_description": "Customize columns, change their order, and export data to CSV for integration with your systems.",
+    "feature3_title": "Teamwork",
+    "feature3_description": "Manage multiple companies and warehouses within a single account."
+  },
+  "pricing": {
+    "title": "Transparent and Clear Pricing",
+    "subtitle": "Choose the plan that's right for your business.",
+    "cta": "Choose Plan"
+  },
+  "plans": {
+    "free": {
+      "name": "Starter",
+      "description": "Great for testing the service."
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Ideal for small to medium businesses."
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "For large companies and high volumes."
+    },
+    "invoices_per_month": "{{count}} invoices per month",
+    "ai_powered_extraction": "AI-powered extraction",
+    "excel_csv_export": "Excel & CSV export"
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "subtitle": "Here you will find answers to the most popular questions.",
+    "q1": "How is the accuracy of data recognition ensured?",
+    "a1": "Our AI is trained on thousands of different invoices. It uses advanced algorithms to identify and extract data. You can also match products with your nomenclature for maximum accuracy.",
+    "q2": "What file formats can I upload?",
+    "a2": "You can upload files in JPG, PNG, and PDF formats. We recommend using high-resolution images for the best results.",
+    "q3": "Is my data secure?",
+    "a3": "Yes, we take data security very seriously. All data is transmitted over encrypted channels and stored in a secure cloud infrastructure.",
+    "q4": "What happens if I exceed the invoice limit in my plan?",
+    "a4": "The application will notify you when you reach the limit. You can upgrade to a higher plan to continue processing invoices without interruption."
+  },
+  "cta_final": {
+    "title": "Ready to streamline your workflow?",
+    "subtitle": "Sign up now and process your first 50 invoices for free. Feel the difference from day one.",
+    "cta": "Start Your Free Trial"
+  },
+  "footer": {
+    "about": "Automate invoice processing with artificial intelligence. Save time, reduce errors, and focus on growing your business.",
+    "navigation": "Navigation",
+    "legal": "Legal",
+    "contact": "Contact Us",
+    "privacy_policy": "Privacy Policy",
+    "terms_of_service": "Terms of Service"
+  }
+}

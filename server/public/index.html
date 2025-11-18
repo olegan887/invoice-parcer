@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Subscribe to a cool new product</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://js.stripe.com/v3/"></script>
+  </head>
+  <body>
+    <section>
+      <div class="product">
+        <div class="description">
+          <h3>Starter Plan</h3>
+          <h5>$20.00 / month</h5>
+        </div>
+      </div>
+      <form id="checkout-form">
+        <button id="checkout-button">Checkout</button>
+      </form>
+    </section>
+
+    <script type="text/javascript">
+      const stripe = Stripe('pk_test_TYooMQauvdEDq54NiTphI7jx');
+      const checkoutButton = document.getElementById('checkout-button');
+
+      checkoutButton.addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        const response = await fetch('/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ priceId: 'price_1Hh1YHCf2Ff3QpQYqVpQ1Zq' }), // Replace with your actual price ID
+        });
+        
+        const session = await response.json();
+        
+        const result = await stripe.redirectToCheckout({
+          sessionId: session.id,
+        });
+        
+        if (result.error) {
+          alert(result.error.message);
+        }
+      });
+    </script>
+  </body>
+</html>

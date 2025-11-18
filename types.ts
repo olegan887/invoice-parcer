@@ -1,5 +1,4 @@
 
-
 export interface Product {
   name: string;
   sku: string;
@@ -51,6 +50,7 @@ export interface Plan {
   currency: 'EUR';
   invoiceLimit: number;
   description: string;
+  stripePriceId: string;
 }
 
 export interface ExportColumn {
