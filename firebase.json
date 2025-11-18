@@ -1,6 +1,7 @@
 {
   "hosting": {
     "source": ".",
+
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -9,5 +10,8 @@
     "frameworksBackend": {
       "region": "europe-west1"
     }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
   }
 }
