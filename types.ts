@@ -24,14 +24,33 @@ export interface InvoiceItem {
 }
 
 export interface Company {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
+  ownerId: string; // userId of the owner
 }
 
 export interface Warehouse {
-    id: string;
-    name: string;
-    companyId: string;
+  id: string;
+  name: string;
+  companyId: string;
+}
+
+export interface Nomenclature {
+  id: string;
+  name: string;
+  companyId: string;
+  data: Product[];
+}
+
+export interface ProcessedInvoice {
+  id: string;
+  userId: string;
+  companyId: string;
+  warehouseId: string;
+  nomenclatureId: string;
+  fileName: string;
+  processedAt: number; // timestamp
+  items: InvoiceItem[];
 }
 
 export interface UserProfile {
@@ -39,6 +58,7 @@ export interface UserProfile {
   name: string;
   email: string;
   picture: string;
+  companyIds: string[]; // ids of companies the user is a member of
 }
 
 export type PlanId = 'free' | 'pro' | 'premium';
@@ -51,6 +71,13 @@ export interface Plan {
   invoiceLimit: number;
   description: string;
   stripePriceId: string;
+}
+
+export interface UserSubscription {
+  planId: PlanId;
+  invoiceCount: number;
+  startDate: number; // timestamp
+  endDate: number; // timestamp
 }
 
 export interface ExportColumn {
