@@ -7,6 +7,48 @@
     "faq": "FAQ",
     "login": "Sign In"
   },
+  "modals": {
+    "create_company": {
+      "title": "Create a New Company",
+      "placeholder": "Enter company name"
+    },
+    "create_warehouse": {
+      "title": "Create a New Warehouse",
+      "placeholder": "Enter warehouse name"
+    },
+    "create_nomenclature": {
+      "title": "Create a New Nomenclature",
+      "placeholder": "Enter nomenclature name"
+    },
+    "manage_company": {
+      "title": "Manage Companies"
+    },
+    "manage_warehouse": {
+      "title": "Manage Warehouses"
+    },
+    "manage_nomenclature": {
+      "title": "Manage Nomenclatures"
+    },
+    "delete_company": {
+      "title": "Delete Company",
+      "message": "Are you sure you want to delete this company? This action cannot be undone."
+    },
+    "delete_warehouse": {
+      "title": "Delete Warehouse",
+      "message": "Are you sure you want to delete this warehouse? This action cannot be undone."
+    },
+    "delete_nomenclature": {
+      "title": "Delete Nomenclature",
+      "message": "Are you sure you want to delete this nomenclature? This action cannot be undone."
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Create",
+      "delete": "Delete",
+      "close": "Close",
+      "manage": "Manage"
+    }
+  },
   "hero": {
     "title": "Ready to streamline your workflow?",
     "subtitle": "Our AI-powered tool automatically extracts data from invoices, matches it with your inventory data, eliminating manual entry errors. Speed up your workflow today.",
